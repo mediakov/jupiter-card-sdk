@@ -1,0 +1,70 @@
+{
+  "name": "jupiter-card-sdk",
+  "version": "0.1.0",
+  "description": "Unofficial TypeScript SDK for the Jupiter Card (jup.ag / Jupiter Global) account API — auth, balances, transactions, and spend insights.",
+  "keywords": [
+    "jupiter",
+    "jupiter-card",
+    "jup.ag",
+    "solana",
+    "crypto-card",
+    "sdk",
+    "typescript",
+    "fintech"
+  ],
+  "license": "MIT",
+  "author": "mediakov <3336529+mediakov@users.noreply.github.com>",
+  "homepage": "https://github.com/mediakov/jupiter-card-sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mediakov/jupiter-card-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mediakov/jupiter-card-sdk/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm test",
+    "example:login": "tsx examples/login.ts",
+    "example:sync": "tsx examples/sync-transactions.ts"
+  },
+  "dependencies": {
+    "tough-cookie": "^5.1.0"
+  },
+  "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@types/node": "^22.10.0",
+    "@vitest/coverage-v8": "^2.1.0",
+    "semantic-release": "^24.2.0",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}

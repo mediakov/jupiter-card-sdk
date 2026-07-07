@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {} # allow triggering a release manually from the Actions tab / CLI
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write # npm provenance
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run build
+      # semantic-release reads Conventional Commits to decide the next version,
+      # updates CHANGELOG, tags, creates the GitHub release, and publishes to npm.
+      # Requires an NPM_TOKEN repo secret (GITHUB_TOKEN is provided automatically).
+      - run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"

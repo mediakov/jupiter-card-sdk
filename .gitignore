@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+
+# session material — equivalent to login credentials, never commit
+.jup-session.json
+*.session.json
+.jup-browser-profile/
+
+# example outputs
+transactions-*.json
+
+# misc
+.env
+.DS_Store
+*.log
