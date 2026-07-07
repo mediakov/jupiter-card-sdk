@@ -106,6 +106,15 @@ except `cards.balance()`, which returns numbers.
 ### `referral`
 `info()` · `summary()`
 
+### `jupiter-card-sdk/zenmoney` (interop)
+A dependency-free subpath that converts Jupiter data to the [ZenMoney](https://github.com/zenmoney/ZenPlugins)
+plugin `movements` format — usable in Node and in the ZenMoney plugin sandbox:
+
+```ts
+import { toScrapeResult } from "jupiter-card-sdk/zenmoney";
+const { accounts, transactions } = toScrapeResult(cards, balance, txs);
+```
+
 ## Errors
 
 Every failed request throws a subclass of `JupiterError`:

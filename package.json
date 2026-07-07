@@ -33,6 +33,11 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
+    "./zenmoney": {
+      "types": "./dist/zenmoney.d.ts",
+      "import": "./dist/zenmoney.js",
+      "require": "./dist/zenmoney.cjs"
+    },
     "./package.json": "./package.json"
   },
   "files": [
