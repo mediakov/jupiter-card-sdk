@@ -24,7 +24,7 @@ balances, transactions, and spend insights.
 npm install jupiter-card-sdk
 ```
 
-Requires Node ≥ 18 (uses the built-in `fetch`).
+Requires Node ≥ 20 (uses the built-in `fetch`).
 
 ## Quick start
 
