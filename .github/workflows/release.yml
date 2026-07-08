@@ -22,7 +22,9 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          registry-url: https://registry.npmjs.org
+          # No registry-url: it writes an .npmrc referencing NODE_AUTH_TOKEN,
+          # which collides with semantic-release's own NPM_TOKEN-based auth and
+          # surfaces as EINVALIDNPMTOKEN. semantic-release handles npm auth.
       - run: npm ci
       - run: npm run build
       # semantic-release reads Conventional Commits to decide the next version,
