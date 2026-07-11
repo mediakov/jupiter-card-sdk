@@ -1,7 +1,13 @@
 {
   "branches": ["main"],
   "plugins": [
-    "@semantic-release/commit-analyzer",
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "//": "Stay in 0.x while the API settles: a breaking change bumps the minor, not the major. The BREAKING CHANGE notes still appear in the release notes.",
+        "releaseRules": [{ "breaking": true, "release": "minor" }]
+      }
+    ],
     "@semantic-release/release-notes-generator",
     "@semantic-release/changelog",
     ["@semantic-release/npm", { "npmPublish": true }],
