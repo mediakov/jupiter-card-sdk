@@ -22,20 +22,32 @@ interface VerifyResponse {
 export class EmailAuth {
   constructor(private readonly http: HttpClient) {}
 
-  /** Send a one-time login code to `email`. */
+  /**
+   * Send a one-time login code to `email`.
+   *
+   * Not retried on failure (POSTs are not idempotent by default). A 429 here surfaces
+   * as {@link RateLimitError} rather than being hammered: every replay is another
+   * email in the user's inbox and a deeper rate limit.
+   */
   async sendCode(email: string): Promise<void> {
-    await this.http.post<{ success: boolean }>(AUTH_ENDPOINTS.sendCode, { email });
+    await this.http.post<unknown>(AUTH_ENDPOINTS.sendCode, { email });
   }
 
   /**
    * Complete login with the emailed code. On success the session cookies are
    * established and persisted (if a `sessionFile` was configured).
+   *
+   * Not retried on failure: the code is single-use, and replaying a request the server
+   * may already have accepted would spend it.
+   *
    * @throws {AuthError} if the code is wrong/expired or no token is returned.
    */
   async verifyCode(email: string, code: string): Promise<void> {
     const res = await this.http.post<VerifyResponse>(AUTH_ENDPOINTS.verifyCode, { email, code, type: "LOGIN" });
-    if (!res?.accessToken) {
-      throw new AuthError(401, AUTH_ENDPOINTS.verifyCode, "verify-code returned no accessToken (wrong/expired code?)");
+    if (!res?.accessToken || !res.refreshToken) {
+      // Without *both*, the session cannot outlive the access token's ~15 minutes; a
+      // half-established session would work now and mysteriously die later.
+      throw new AuthError(401, AUTH_ENDPOINTS.verifyCode, "verify-code returned no token pair (wrong/expired code?)");
     }
     this.http.setCookiePairs({
       access_token: res.accessToken,
@@ -51,10 +63,15 @@ export class EmailAuth {
    * @throws {AuthError} if the refresh token is gone/expired (re-login needed).
    */
   async refresh(): Promise<void> {
+    const before = this.http.sessionToken();
     // _reauthed: true prevents a 401 here from recursing back into reauth.
     await this.http.request("POST", AUTH_ENDPOINTS.refresh, { _reauthed: true });
-    if (!this.http.hasSession()) {
-      throw new AuthError(401, AUTH_ENDPOINTS.refresh, "refresh failed — re-login required");
+    const after = this.http.sessionToken();
+    // Presence is not proof: a 2xx that rotates nothing leaves the *old, expired*
+    // cookie in the jar, which would pass a `hasSession()` check and then 401 forever.
+    // The token must actually have changed.
+    if (after === undefined || after === before) {
+      throw new AuthError(401, AUTH_ENDPOINTS.refresh, "refresh did not issue a new access token — re-login required");
     }
   }
 }

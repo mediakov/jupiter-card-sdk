@@ -2,7 +2,8 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { CookieJar } from "tough-cookie";
 import { AUTH_FLOW, DEFAULT_UA, DEFAULTS, JUP_BASE } from "./constants.js";
-import { NetworkError, TimeoutError, apiErrorFor } from "./errors.js";
+import { NetworkError, TimeoutError, ValidationError, apiErrorFor } from "./errors.js";
+import { describe } from "./validate.js";
 
 export interface HttpOptions {
   baseUrl?: string;
@@ -26,10 +27,28 @@ export interface RequestOptions {
   query?: Record<string, string | number | boolean | undefined>;
   body?: unknown;
   headers?: Record<string, string>;
+  /**
+   * Override the retry policy for this request.
+   *
+   * By default only idempotent methods are retried — see {@link IDEMPOTENT_METHODS}.
+   * Set `true` to retry a POST you know is safe to repeat, or `false` to disable
+   * retries entirely.
+   */
+  retry?: boolean;
   /** Internal: set on the retry after re-auth to avoid an infinite loop. */
   _reauthed?: boolean;
   signal?: AbortSignal;
 }
+
+/**
+ * Methods that may be sent again without changing the outcome.
+ *
+ * A POST may not: replaying `auth/email/send-code` after a 429 sends the user another
+ * email and digs the rate limit deeper, and replaying `verify-code` after a 5xx can
+ * spend a one-time code that the server had, in fact, accepted. Repeating a request
+ * whose effect we cannot see is not a retry — it is a second request.
+ */
+export const IDEMPOTENT_METHODS = new Set(["GET", "HEAD", "OPTIONS", "PUT", "DELETE"]);
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -75,7 +94,17 @@ export class HttpClient {
 
   /** True if an `access_token` cookie is present (a session exists). */
   hasSession(): boolean {
-    return this.jar.getCookiesSync(this.base).some((c) => c.key === "access_token");
+    return this.sessionToken() !== undefined;
+  }
+
+  /**
+   * The current `access_token` cookie value, if any.
+   *
+   * Exposed so a refresh can prove the token actually *changed*: presence alone does
+   * not mean the refresh worked — the stale cookie is still sitting there.
+   */
+  sessionToken(): string | undefined {
+    return this.jar.getCookiesSync(this.base).find((c) => c.key === "access_token")?.value;
   }
 
   /** Seed cookies from a `name=value; …` string, then persist. */
@@ -107,7 +136,9 @@ export class HttpClient {
   persist(): void {
     if (!this.sessionFile) return;
     const dir = dirname(this.sessionFile);
-    if (dir && !existsSync(dir)) mkdirSync(dir, { recursive: true });
+    // The file is 0600, but a world-readable directory around it is still a leak of
+    // its existence and a place others can drop files; the session is a bearer token.
+    if (dir && !existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
     writeFileSync(this.sessionFile, JSON.stringify(this.jar.serializeSync()), { mode: 0o600 });
   }
 
@@ -122,8 +153,14 @@ export class HttpClient {
     return Math.min(jitter, DEFAULTS.retryMaxMs);
   }
 
+  /** Whether a failed attempt at this request may be sent again. */
+  private mayRetry(method: string, opts: RequestOptions): boolean {
+    return opts.retry ?? IDEMPOTENT_METHODS.has(method.toUpperCase());
+  }
+
   async request<T>(method: string, path: string, opts: RequestOptions = {}): Promise<T> {
     const url = new URL(this.resolve(path));
+    const retryable = this.mayRetry(method, opts);
     for (const [k, v] of Object.entries(opts.query ?? {})) {
       if (v !== undefined) url.searchParams.set(k, String(v));
     }
@@ -160,7 +197,9 @@ export class HttpClient {
         });
       } catch (e) {
         const isTimeout = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
-        if (attempt < this.maxRetries) {
+        // A network error leaves the request's fate unknown: it may have reached the
+        // server. Only replay it when replaying is harmless.
+        if (retryable && attempt < this.maxRetries) {
           await sleep(this.backoff(attempt));
           continue;
         }
@@ -187,8 +226,10 @@ export class HttpClient {
         return this.request<T>(method, path, { ...opts, _reauthed: true });
       }
 
-      // retryable statuses
-      if ((res.status === 429 || res.status >= 500) && attempt < this.maxRetries) {
+      // retryable statuses — but only for a request that is safe to send twice.
+      // A non-retryable 429 still surfaces as RateLimitError with `retryAfterMs`, so
+      // the caller can decide; the SDK just refuses to decide for them.
+      if ((res.status === 429 || res.status >= 500) && retryable && attempt < this.maxRetries) {
         const ra = res.headers.get("retry-after");
         const retryAfterMs = ra ? (Number.isNaN(Number(ra)) ? undefined : Number(ra) * 1000) : undefined;
         await sleep(this.backoff(attempt, retryAfterMs));
@@ -201,15 +242,28 @@ export class HttpClient {
         throw apiErrorFor(res.status, url.toString(), text, ra ? Number(ra) * 1000 : undefined);
       }
       if (!text) return undefined as T;
-      const ct = res.headers.get("content-type") ?? "";
-      return (ct.includes("json") ? JSON.parse(text) : text) as T;
+
+      // Every endpoint here answers JSON. Returning the raw text when it does not —
+      // as this used to — hands back a Cloudflare challenge page typed as whatever the
+      // caller asked for, and the failure surfaces much later as missing data.
+      // Trust the body, not the content-type header, which can be wrong either way.
+      try {
+        return JSON.parse(text) as T;
+      } catch {
+        throw new ValidationError(url.toString(), "a JSON body", describe(text));
+      }
     }
   }
 
   get<T>(path: string, query?: RequestOptions["query"]): Promise<T> {
     return this.request<T>("GET", path, { query });
   }
-  post<T>(path: string, body?: unknown, query?: RequestOptions["query"]): Promise<T> {
-    return this.request<T>("POST", path, { body, query });
+  post<T>(
+    path: string,
+    body?: unknown,
+    query?: RequestOptions["query"],
+    opts?: Pick<RequestOptions, "retry">,
+  ): Promise<T> {
+    return this.request<T>("POST", path, { body, query, ...opts });
   }
 }
