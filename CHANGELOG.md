@@ -1,3 +1,27 @@
+# [0.2.0](https://github.com/mediakov/jupiter-card-sdk/compare/v0.1.0...v0.2.0) (2026-07-11)
+
+
+### Bug Fixes
+
+* do not lose or double-count transactions while paging ([7ab2aa1](https://github.com/mediakov/jupiter-card-sdk/commit/7ab2aa138c0574edb000933021a03d6b20b037e1))
+* never replay a request whose effect we cannot see ([552b817](https://github.com/mediakov/jupiter-card-sdk/commit/552b8174a57b2f79d53d9995ce87e918115c3586))
+
+
+### Features
+
+* read money through accessors instead of raw fields ([4fff88c](https://github.com/mediakov/jupiter-card-sdk/commit/4fff88cd6c8439730e652a6225e7518d3868db15))
+
+
+### BREAKING CHANGES
+
+* POST, PATCH and other non-idempotent requests are no longer
+retried by default. Pass { retry: true } to restore the old behaviour for a
+request you know is safe to repeat.
+* Transaction.direction, settlementAmount, transactionTimestamp,
+card and most fields on Card, CardBalance and PageMeta are now optional/nullable.
+Read them with the new accessors from "jupiter-card-sdk". Endpoints that return
+an unexpected shape now throw ValidationError rather than returning it.
+
 # Changelog
 
 All notable changes are documented here. This file is maintained automatically
