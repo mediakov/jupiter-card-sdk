@@ -6,7 +6,7 @@
  *   JUP_EMAIL=you@example.com npx tsx examples/login.ts
  */
 import { createInterface } from "node:readline/promises";
-import { JupiterCard } from "../src/index.js";
+import { JupiterCard, isHold, signedAmount, transactionDate } from "../src/index.js";
 
 const email = process.env.JUP_EMAIL;
 if (!email) {
@@ -38,8 +38,13 @@ console.log("cashback:", await jc.cards.cashbackBalance());
 console.log("\nrecent transactions:");
 let n = 0;
 for await (const tx of jc.transactions.iterate({ year: new Date().getUTCFullYear() })) {
-  const merchant = tx.card?.merchantName ?? tx.type;
-  console.log(` - ${tx.transactionTimestamp}  ${tx.direction.padEnd(6)} ${tx.settlementAmount} ${tx.settlementCurrency}  ${merchant}`);
+  const merchant = tx.card?.merchantName ?? tx.type ?? "—";
+  // signedAmount() is negative for a debit, positive for a credit, and null when the
+  // record cannot be read honestly — never a guess. Same for transactionDate().
+  const sum = signedAmount(tx);
+  const at = transactionDate(tx);
+  const amount = sum === null ? "unreadable" : `${sum > 0 ? "+" : ""}${sum} ${tx.settlementCurrency ?? ""}`;
+  console.log(` - ${at?.toISOString() ?? "unreadable date"}  ${amount.padEnd(16)} ${merchant}${isHold(tx) ? "  (hold)" : ""}`);
   if (++n >= 10) break;
 }
 

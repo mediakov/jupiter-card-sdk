@@ -5,7 +5,7 @@
  *   JUP_EMAIL=you@example.com npx tsx examples/sync-transactions.ts [year] [out.json]
  */
 import { writeFileSync } from "node:fs";
-import { JupiterCard } from "../src/index.js";
+import { JupiterCard, directionSign, isBookable } from "../src/index.js";
 
 const email = process.env.JUP_EMAIL;
 if (!email) {
@@ -26,5 +26,14 @@ console.log(`fetching ${year} transactions…`);
 const txs = await jc.transactions.all({ year });
 writeFileSync(out, JSON.stringify(txs, null, 2));
 
-const debit = txs.filter((t) => t.direction === "DEBIT").length;
-console.log(`wrote ${txs.length} transactions (${debit} debits) to ${out}`);
+// Count with the accessors, not by hand. `directionSign` returns null for a direction
+// the SDK does not know — those records are reported, not quietly filed as debits.
+const debits = txs.filter((t) => directionSign(t) === -1).length;
+const credits = txs.filter((t) => directionSign(t) === 1).length;
+const unreadable = txs.filter((t) => !isBookable(t));
+
+console.log(`wrote ${txs.length} transactions (${debits} debits, ${credits} credits) to ${out}`);
+if (unreadable.length > 0) {
+  console.warn(`⚠️  ${unreadable.length} could not be read (unknown direction, or a bad amount/date):`);
+  for (const tx of unreadable.slice(0, 5)) console.warn(`     ${tx.id}  direction=${tx.direction ?? "—"} amount=${tx.settlementAmount ?? "—"}`);
+}

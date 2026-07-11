@@ -29,7 +29,7 @@ Requires Node ≥ 20 (uses the built-in `fetch`).
 ## Quick start
 
 ```ts
-import { JupiterCard } from "jupiter-card-sdk";
+import { JupiterCard, signedAmount, transactionDate } from "jupiter-card-sdk";
 
 const jc = new JupiterCard({
   auth: { kind: "email", email: "you@example.com", sessionFile: ".jup-session.json" },
@@ -44,10 +44,43 @@ if (!jc.isAuthenticated()) {
 const balance = await jc.cards.balance();
 console.log(balance); // { currency: "USD", spendableBalance: 123.45, withdrawableBalance: 123.45 }
 
-for await (const tx of jc.transactions.iterate({ year: 2026 })) {
-  console.log(tx.transactionTimestamp, tx.direction, tx.settlementAmount, tx.card?.merchantName);
+// Everything at or after a date — handles the year filter and pagination for you.
+for await (const tx of jc.transactions.since(new Date("2026-01-01"))) {
+  console.log(transactionDate(tx), signedAmount(tx), tx.card?.merchantName);
 }
 ```
+
+## Reading money
+
+**Do not compute the sign yourself.** The obvious one-liner is wrong:
+
+```ts
+const sum = (tx.direction === "CREDIT" ? 1 : -1) * Number(tx.settlementAmount); // ✗
+```
+
+It treats everything that is *not* `CREDIT` as money leaving the account — so a missing
+`direction`, or a value Jupiter adds later, books income as an expense. And `Number("")`
+is `0`, so a malformed amount silently becomes a real, wrong number.
+
+Use the accessors. Each returns `null` for a record it cannot read honestly — `null`
+means *"this cannot be represented"*, never zero:
+
+```ts
+import { signedAmount, transactionDate, isHold, isBookable } from "jupiter-card-sdk";
+
+signedAmount(tx);    // -10.5 for a debit, +10.5 for a credit, null if unknown
+transactionDate(tx); // a Date, or null — never an Invalid Date
+isHold(tx);          // a card authorisation still pending settlement
+isBookable(tx);      // false → skip it rather than write a guess into a ledger
+```
+
+The money-bearing fields on `Transaction` are typed as possibly absent **on purpose**:
+they are not validated, and a live API omits fields it promised. Declaring them required
+would make TypeScript vouch for data nobody checked.
+
+What *is* checked is the response's **structure** — if an endpoint that promises a list
+returns something else (a Cloudflare challenge page, say), the SDK throws a
+`ValidationError` rather than handing back a value that only claims to be a list.
 
 After the first login the session is saved to `sessionFile` and refreshed
 automatically, so subsequent runs need no code entry (for the ~7-day refresh
