@@ -43,6 +43,27 @@ export class RateLimitError extends ApiError {
   }
 }
 
+/**
+ * The response did not have the shape the endpoint promises — e.g. a Cloudflare
+ * challenge page where a JSON list was expected.
+ *
+ * This is deliberately fatal. The alternative is to hand the caller a value that
+ * TypeScript claims is a `Transaction[]` but isn't, which surfaces much later as
+ * a nonsensical balance rather than an error.
+ */
+export class ValidationError extends JupiterError {
+  constructor(
+    /** Request URL. */
+    public readonly url: string,
+    /** What the endpoint was expected to return. */
+    public readonly expected: string,
+    /** A short, non-sensitive description of what came back. */
+    public readonly received: string,
+  ) {
+    super(`Unexpected response from ${url}: expected ${expected}, got ${received}`);
+  }
+}
+
 /** A network-level failure (DNS, connection reset, timeout/abort). */
 export class NetworkError extends JupiterError {}
 

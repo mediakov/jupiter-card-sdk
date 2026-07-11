@@ -64,21 +64,29 @@ export type CardStatus = Open<"ACTIVE" | "FROZEN" | "CLOSED" | "PENDING">;
 
 export interface Card {
   id: string;
-  customerId: string;
+  customerId?: string | null;
   /** Card issuer/provider. */
-  provider: string;
-  cardAccountId: string;
-  status: CardStatus;
+  provider?: string | null;
+  /**
+   * The account the card draws on. Several cards can share one.
+   *
+   * This is the only stable identifier for the underlying account — deriving an
+   * account identity from any other field (the card id, the last 4) makes it change
+   * when a card is reissued, which duplicates the account in a downstream ledger
+   * permanently. If it is absent, do not substitute something else.
+   */
+  cardAccountId?: string | null;
+  status?: CardStatus | null;
   /** Card art / design identifier. */
-  design: string;
-  imageUrl: string;
-  last4: string;
+  design?: string | null;
+  imageUrl?: string | null;
+  last4?: string | null;
   /** Two-digit month, e.g. "07". */
-  expirationMonth: string;
+  expirationMonth?: string | null;
   /** Four-digit year, e.g. "2028". */
-  expirationYear: string;
-  createdAt: string;
-  updatedAt: string;
+  expirationYear?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 export interface CardsResponse {
@@ -87,10 +95,10 @@ export interface CardsResponse {
 
 export interface CardBalance {
   /** e.g. "USD". */
-  currency: string;
-  /** NOTE: numbers here (not strings). */
-  spendableBalance: number;
-  withdrawableBalance: number;
+  currency?: string | null;
+  /** NOTE: numbers here (not strings). May be absent — do not read as `0`. */
+  spendableBalance?: number | null;
+  withdrawableBalance?: number | null;
 }
 
 export interface CashbackBalance {
@@ -122,52 +130,72 @@ export interface TransactionFees {
 
 /** Card-specific detail present on `type: "CARD"` transactions. */
 export interface TransactionCard {
-  last4: string;
-  merchantName: string;
-  merchantLogoUrl: string;
+  last4?: string | null;
+  merchantName?: string | null;
+  merchantLogoUrl?: string | null;
   /** ISO 18245 MCC. */
-  merchantCategoryCode: string;
+  merchantCategoryCode?: string | null;
   /** Present on the single-transaction endpoint. */
   category?: TransactionCategory;
   /** Present on the single-transaction endpoint. */
   canApplyToSimilar?: boolean;
   /** User note, if set. */
   note?: string | null;
-  status: string;
-  settlementTimestamp: string | null;
-  fees: TransactionFees;
+  status?: string | null;
+  /** `null` while the authorisation is still a hold — see {@link isHold}. */
+  settlementTimestamp?: string | null;
+  fees?: TransactionFees | null;
 }
 
+/**
+ * A card transaction.
+ *
+ * The money-bearing fields are typed as possibly absent **on purpose**. They are not
+ * validated at the boundary (see `validate.ts`), and a live API omits fields it
+ * promised and adds enum values it did not. Declaring them required would let
+ * TypeScript vouch for data nobody checked, and the resulting `undefined` would be
+ * discovered as a wrong balance rather than a type error.
+ *
+ * Read them through the accessors in `money.ts` — {@link signedAmount},
+ * {@link transactionDate}, {@link isHold} — which return `null` rather than a guess.
+ */
 export interface Transaction {
+  /** Stable primary key; used for de-duplication. */
   id: string;
-  cardId: string;
-  type: TransactionType;
-  direction: TransactionDirection;
-  settlementCurrency: string;
-  settlementAmount: MoneyString;
-  transactionCurrency: string;
-  transactionAmount: MoneyString;
-  providerTransactionId: string;
+  cardId?: string | null;
+  type?: TransactionType | null;
+  /**
+   * `DEBIT` (money out) or `CREDIT` (money in) — but treat any other value as
+   * *unknown*, not as a debit. Use {@link directionSign}.
+   */
+  direction?: TransactionDirection | null;
+  settlementCurrency?: string | null;
+  settlementAmount?: MoneyString | null;
+  transactionCurrency?: string | null;
+  transactionAmount?: MoneyString | null;
+  providerTransactionId?: string | null;
   /** Solana signature for on-chain legs (deposits/withdrawals). */
-  onchainSignature: string | null;
-  transactionTimestamp: string;
+  onchainSignature?: string | null;
+  transactionTimestamp?: string | null;
   /** Present for card purchases. */
-  card: TransactionCard | null;
-  deposit: unknown | null;
-  withdrawal: unknown | null;
-  qr: unknown | null;
+  card?: TransactionCard | null;
+  deposit?: unknown | null;
+  withdrawal?: unknown | null;
+  qr?: unknown | null;
 }
 
 export interface PageMeta {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
+  page?: number | null;
+  limit?: number | null;
+  total?: number | null;
+  /** Absent on some responses — pagination must not depend on it alone. */
+  totalPages?: number | null;
 }
 
 export interface Paginated<T> {
+  /** Structurally guaranteed to be an array (see `validate.ts`). */
   data: T[];
-  meta: PageMeta;
+  meta?: PageMeta | null;
 }
 
 export interface TransactionCategoriesResponse {
