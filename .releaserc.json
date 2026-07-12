@@ -10,7 +10,13 @@
     ],
     "@semantic-release/release-notes-generator",
     "@semantic-release/changelog",
-    ["@semantic-release/npm", { "npmPublish": true }],
+    [
+      "@semantic-release/npm",
+      {
+        "//": "Bump package.json only. The publish is done by the workflow with npm's trusted publishing (OIDC): @semantic-release/npm hard-requires an NPM_TOKEN (set-npmrc-auth throws ENONPMTOKEN without one) and has no OIDC support, and a long-lived, 2FA-bypassing token in CI is exactly the npm supply-chain vector we are avoiding. With npmPublish:false it skips the auth check entirely.",
+        "npmPublish": false
+      }
+    ],
     "@semantic-release/github",
     [
       "@semantic-release/git",
