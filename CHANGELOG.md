@@ -1,3 +1,10 @@
+## [0.2.1](https://github.com/mediakov/jupiter-card-sdk/compare/v0.2.0...v0.2.1) (2026-07-12)
+
+
+### Bug Fixes
+
+* validate the insights, account and referral responses too ([31df0b2](https://github.com/mediakov/jupiter-card-sdk/commit/31df0b2bd9961fd5ccac1e0275f96aaf6df23662))
+
 # [0.2.0](https://github.com/mediakov/jupiter-card-sdk/compare/v0.1.0...v0.2.0) (2026-07-11)
 
 
