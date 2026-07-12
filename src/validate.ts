@@ -58,3 +58,11 @@ export function expectArrayAt<T>(value: unknown, key: string, url: string, what:
   }
   return list as T[];
 }
+
+/** Assert the body is a bare top-level JSON array. */
+export function expectArray<T>(value: unknown, url: string, what: string): T[] {
+  if (!Array.isArray(value)) {
+    throw new ValidationError(url, what, describe(value));
+  }
+  return value as T[];
+}
