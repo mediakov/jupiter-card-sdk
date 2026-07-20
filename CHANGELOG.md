@@ -1,3 +1,20 @@
+# [0.3.0](https://github.com/mediakov/jupiter-card-sdk/compare/v0.2.1...v0.3.0) (2026-07-20)
+
+
+### Features
+
+* add isDeclined, and stop treating declines as holds/bookable ([214540c](https://github.com/mediakov/jupiter-card-sdk/commit/214540cebce1782333dfff52c5cb39a4393136bd))
+
+
+### BREAKING CHANGES
+
+* isHold and isBookable now return false for a declined
+card transaction where they previously returned true. This is the point
+— but code relying on the old behaviour will see the change. In 0.x this
+is a minor bump.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
 ## [0.2.1](https://github.com/mediakov/jupiter-card-sdk/compare/v0.2.0...v0.2.1) (2026-07-12)
 
 
