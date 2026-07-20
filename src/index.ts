@@ -23,6 +23,7 @@ export {
   signedAmount,
   signedOriginalAmount,
   transactionDate,
+  isDeclined,
   isHold,
   isBookable,
 } from "./money.js";

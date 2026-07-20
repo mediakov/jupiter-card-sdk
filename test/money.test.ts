@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   directionSign,
   isBookable,
+  isDeclined,
   isHold,
   parseMoney,
   signedAmount,
@@ -89,6 +90,35 @@ describe("transactionDate", () => {
   });
 });
 
+describe("isDeclined", () => {
+  const card = (status: string | null, extra = {}) =>
+    tx({ type: "CARD", card: { status, settlementTimestamp: null, ...extra } });
+
+  it("is true for a refused charge — the amount and date look normal", () => {
+    // A decline carries a full amount and a valid timestamp; only the status gives it away.
+    expect(isDeclined(card("INSUFFICIENT_FUNDS"))).toBe(true);
+  });
+
+  it("is false for money that moved or is committed", () => {
+    expect(isDeclined(card("COMPLETED", { settlementTimestamp: "2026-03-02T00:00:00Z" }))).toBe(false);
+    expect(isDeclined(card("AUTHORIZED"))).toBe(false);
+    expect(isDeclined(card("completed"))).toBe(false); // case-insensitive
+  });
+
+  it("treats an UNSEEN status as declined — allowlist, not denylist", () => {
+    // A decline code we have never observed must be skipped, not booked on a guess.
+    expect(isDeclined(card("DO_NOT_HONOR"))).toBe(true);
+    expect(isDeclined(card("EXPIRED"))).toBe(true);
+  });
+
+  it("never declines a non-card row or a card row with no status", () => {
+    expect(isDeclined(tx({ type: "DEPOSIT", card: null }))).toBe(false);
+    expect(isDeclined(tx({ type: "WITHDRAWAL", card: null }))).toBe(false);
+    expect(isDeclined(card(null))).toBe(false); // older records lack the field — keep booking
+    expect(isDeclined(card(""))).toBe(false);
+  });
+});
+
 describe("isHold", () => {
   it("is true for an unsettled card authorisation", () => {
     expect(isHold(tx({ card: { settlementTimestamp: null } }))).toBe(true);
@@ -98,6 +128,10 @@ describe("isHold", () => {
     expect(isHold(tx({ card: { settlementTimestamp: "2026-03-02T00:00:00Z" } }))).toBe(false);
     expect(isHold(tx({ card: null }))).toBe(false);
   });
+
+  it("is false for a decline — it, too, has no settlement, but no money is committed", () => {
+    expect(isHold(tx({ type: "CARD", card: { status: "INSUFFICIENT_FUNDS", settlementTimestamp: null } }))).toBe(false);
+  });
 });
 
 describe("isBookable", () => {
@@ -106,5 +140,9 @@ describe("isBookable", () => {
     expect(isBookable(tx({ direction: "MYSTERY" }))).toBe(false);
     expect(isBookable(tx({ settlementAmount: "" }))).toBe(false);
     expect(isBookable(tx({ transactionTimestamp: "nope" }))).toBe(false);
+  });
+
+  it("is false for a decline, even though its amount and date read fine", () => {
+    expect(isBookable(tx({ type: "CARD", card: { status: "INSUFFICIENT_FUNDS", settlementTimestamp: null } }))).toBe(false);
   });
 });

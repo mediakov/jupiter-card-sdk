@@ -66,13 +66,18 @@ Use the accessors. Each returns `null` for a record it cannot read honestly — 
 means *"this cannot be represented"*, never zero:
 
 ```ts
-import { signedAmount, transactionDate, isHold, isBookable } from "jupiter-card-sdk";
+import { signedAmount, transactionDate, isDeclined, isHold, isBookable } from "jupiter-card-sdk";
 
 signedAmount(tx);    // -10.5 for a debit, +10.5 for a credit, null if unknown
 transactionDate(tx); // a Date, or null — never an Invalid Date
-isHold(tx);          // a card authorisation still pending settlement
-isBookable(tx);      // false → skip it rather than write a guess into a ledger
+isDeclined(tx);      // true for a refused charge (e.g. INSUFFICIENT_FUNDS) — no money moved
+isHold(tx);          // a card authorisation still pending settlement (never a decline)
+isBookable(tx);      // false → skip it rather than write a guess, or an expense that never happened
 ```
+
+A decline (`card.status` like `INSUFFICIENT_FUNDS`) carries a full amount and a valid date,
+so `isDeclined` — not the numbers — is the only signal no money moved. `isHold` and
+`isBookable` both account for it: a decline is neither a hold nor bookable.
 
 The money-bearing fields on `Transaction` are typed as possibly absent **on purpose**:
 they are not validated, and a live API omits fields it promised. Declaring them required

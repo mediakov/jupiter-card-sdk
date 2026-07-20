@@ -84,19 +84,46 @@ export function transactionDate(tx: Pick<Transaction, "transactionTimestamp">): 
 }
 
 /**
- * True while a card authorisation is still pending settlement (a *hold*): the amount
- * may yet change or vanish. Only card transactions can be held; an on-chain deposit
- * or withdrawal is never one.
+ * Card statuses where money actually moved or is committed: `COMPLETED` (settled) and
+ * `AUTHORIZED` (a hold that will settle). An ALLOWLIST on purpose — a status we have not
+ * seen is treated as a non-charge, so a new decline code is skipped rather than booked.
  */
-export function isHold(tx: Pick<Transaction, "card">): boolean {
-  return tx.card != null && tx.card.settlementTimestamp == null;
+const MONEY_MOVED_STATUS = new Set(["COMPLETED", "AUTHORIZED"]);
+
+/**
+ * True when a card charge was refused and no money moved — e.g. `INSUFFICIENT_FUNDS`.
+ *
+ * This is the field that matters and the easiest to miss: a decline carries a full amount
+ * and a valid timestamp, so nothing about the numbers gives it away. Booking one puts an
+ * expense in a ledger that never happened, and nothing later reverses it.
+ *
+ * Only `type: "CARD"` rows carry a status; on-chain deposits/withdrawals never do, so they
+ * are never declined. A card row with no status at all is treated as NOT declined — the
+ * field is absent on some older records, and this must not start dropping real history.
+ */
+export function isDeclined(tx: Pick<Transaction, "type" | "card">): boolean {
+  if (tx.type !== "CARD") return false;
+  const status = tx.card?.status;
+  if (status == null || status === "") return false;
+  return !MONEY_MOVED_STATUS.has(status.toUpperCase());
 }
 
 /**
- * True if every part of the transaction needed to book it — direction, amount, and
- * timestamp — could be read. A `false` here is the signal to skip the record rather
- * than write a guess into a ledger.
+ * True while a card authorisation is still pending settlement (a *hold*): the amount
+ * may yet change or vanish. Only card transactions can be held; an on-chain deposit
+ * or withdrawal is never one, and a **declined** charge is not a hold — no money is
+ * committed — even though it, too, has no settlement timestamp.
+ */
+export function isHold(tx: Pick<Transaction, "type" | "card">): boolean {
+  return tx.card != null && tx.card.settlementTimestamp == null && !isDeclined(tx);
+}
+
+/**
+ * True if the transaction should be written to a ledger: it moved money (not a decline)
+ * and every part needed to book it — direction, amount, timestamp — could be read. A
+ * `false` here is the signal to skip the record rather than write a guess, or an expense
+ * that never happened.
  */
 export function isBookable(tx: Transaction): boolean {
-  return signedAmount(tx) !== null && transactionDate(tx) !== null;
+  return !isDeclined(tx) && signedAmount(tx) !== null && transactionDate(tx) !== null;
 }

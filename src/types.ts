@@ -128,6 +128,16 @@ export interface TransactionFees {
   exchangeRate: MoneyString;
 }
 
+/**
+ * Lifecycle status of a card purchase.
+ *
+ * Observed live: `COMPLETED` (settled), `AUTHORIZED` (a pending hold), and
+ * `INSUFFICIENT_FUNDS` (a decline — no money moved). Left `Open<>` because a card program
+ * emits more decline codes than any one account will ever show; treat an unrecognised value
+ * as "not a settled/held charge" rather than assume it is spendable — see {@link isDeclined}.
+ */
+export type CardTransactionStatus = Open<"COMPLETED" | "AUTHORIZED" | "INSUFFICIENT_FUNDS">;
+
 /** Card-specific detail present on `type: "CARD"` transactions. */
 export interface TransactionCard {
   last4?: string | null;
@@ -141,7 +151,12 @@ export interface TransactionCard {
   canApplyToSimilar?: boolean;
   /** User note, if set. */
   note?: string | null;
-  status?: string | null;
+  /**
+   * Where the charge is in its lifecycle. A decline (e.g. `INSUFFICIENT_FUNDS`) still
+   * carries a full amount and a valid timestamp, so this field is the ONLY signal that no
+   * money moved. Read it through {@link isDeclined} rather than comparing by hand.
+   */
+  status?: CardTransactionStatus | null;
   /** `null` while the authorisation is still a hold — see {@link isHold}. */
   settlementTimestamp?: string | null;
   fees?: TransactionFees | null;
